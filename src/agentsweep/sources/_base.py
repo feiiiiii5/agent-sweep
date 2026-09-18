@@ -271,4 +271,6 @@ def _line_ending(line: str) -> str:
         return "\r\n"
     if line.endswith("\n"):
         return "\n"
+    if line.endswith("\r"):
+        return "\r"
     return ""

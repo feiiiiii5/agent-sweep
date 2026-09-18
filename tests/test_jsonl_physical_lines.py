@@ -283,3 +283,44 @@ def test_line_count_guard_still_refuses_an_added_line_break(tmp_path):
         safe_write(
             session, '{"role":"user","text":"a' + LINE_SEPARATOR + 'b"}\n', fmt="jsonl"
         )
+
+
+@pytest.mark.parametrize(
+    "content, keypath",
+    [
+        # terminator of the rewritten record is in the middle of the file
+        (
+            '{"role":"user","text":"key=%s"}\r{"role":"assistant","text":"hi"}\r'
+            % AWS_KEY,
+            ["text"],
+        ),
+        # and at the very end of the file
+        (
+            '{"role":"user","text":"hi"}\r{"role":"user","text":"key=%s"}\r' % AWS_KEY,
+            ["text"],
+        ),
+    ],
+)
+def test_redaction_preserves_a_lone_cr_record_terminator(tmp_path, content, keypath):
+    """A rewritten record must keep whatever terminator ended it, including bare CR."""
+    root = tmp_path / "projects"
+    root.mkdir()
+    session = root / "cr.jsonl"
+    session.write_text(content, encoding="utf-8")
+    source = ClaudeCodeSource(root=root)
+
+    line, path = next(
+        (ln, kp) for ln, kp, value in source.iter_strings(session) if AWS_KEY in value
+    )
+    new_content = source.apply_redactions(session, [(line, path, MARKER)])
+
+    assert new_content.count("\r") == content.count("\r"), (
+        "the CR terminators must survive"
+    )
+    assert new_content.endswith("\r"), (
+        "the final lone CR terminator must not be dropped"
+    )
+    assert AWS_KEY not in new_content
+    assert len(_records(new_content.replace("\r", "\n"))) == 2, (
+        "no two records may be merged"
+    )
