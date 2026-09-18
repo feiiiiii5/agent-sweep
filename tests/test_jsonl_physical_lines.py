@@ -324,3 +324,19 @@ def test_redaction_preserves_a_lone_cr_record_terminator(tmp_path, content, keyp
     assert len(_records(new_content.replace("\r", "\n"))) == 2, (
         "no two records may be merged"
     )
+
+
+def test_plaintext_redaction_preserves_a_lone_cr_line_terminator(tmp_path):
+    """``_line_ending`` is shared, so the text path keeps a bare CR too."""
+    from agentsweep.sources._helpers import _apply_plaintext_redactions
+
+    path = tmp_path / "memory.md"
+    content = "note one\r" + "key=" + AWS_KEY + "\r"
+    path.write_bytes(content.encode("utf-8"))
+
+    new_content = _apply_plaintext_redactions(path, [(2, [], MARKER)])
+
+    assert new_content == "note one\r" + MARKER + "\r"
+    assert new_content.endswith("\r"), (
+        "the final lone CR terminator must not be dropped"
+    )
